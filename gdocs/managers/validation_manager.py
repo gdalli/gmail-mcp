@@ -387,6 +387,94 @@ class ValidationManager:
 
         return True, ""
 
+    def validate_table_cell_style_params(
+        self,
+        background_color: Optional[str] = None,
+        border_color: Optional[str] = None,
+        border_width: Optional[float] = None,
+        row_index: Optional[int] = None,
+        column_index: Optional[int] = None,
+        row_span: Optional[int] = None,
+        column_span: Optional[int] = None,
+    ) -> Tuple[bool, str]:
+        """
+        Validate table cell style parameters for updateTableCellStyle requests.
+
+        Args:
+            background_color: Cell background color in "#RRGGBB" format
+            border_color: Border color in "#RRGGBB" format
+            border_width: Border width in points
+            row_index: Optional starting row index for a targeted cell range
+            column_index: Optional starting column index for a targeted cell range
+            row_span: Optional row span for a targeted cell range
+            column_span: Optional column span for a targeted cell range
+
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+        if all(
+            param is None for param in (background_color, border_color, border_width)
+        ):
+            return (
+                False,
+                "At least one table cell style parameter must be provided (background_color, border_color, or border_width)",
+            )
+
+        is_valid, error_msg = self.validate_color_param(
+            background_color, "background_color"
+        )
+        if not is_valid:
+            return False, error_msg
+
+        is_valid, error_msg = self.validate_color_param(border_color, "border_color")
+        if not is_valid:
+            return False, error_msg
+
+        if border_width is not None:
+            if not isinstance(border_width, (int, float)):
+                return (
+                    False,
+                    f"border_width must be a number, got {type(border_width).__name__}",
+                )
+            if border_width <= 0:
+                return False, f"border_width must be positive, got {border_width}"
+
+        has_range_start = row_index is not None or column_index is not None
+        has_range_span = row_span is not None or column_span is not None
+        if has_range_start or has_range_span:
+            if row_index is None or column_index is None:
+                return (
+                    False,
+                    "row_index and column_index must both be provided when targeting a table range",
+                )
+
+            for value, name in (
+                (row_index, "row_index"),
+                (column_index, "column_index"),
+            ):
+                if not isinstance(value, int):
+                    return (
+                        False,
+                        f"{name} must be an integer, got {type(value).__name__}",
+                    )
+                if value < 0:
+                    return False, f"{name} must be non-negative, got {value}"
+
+            for value, name in (
+                (row_span, "row_span"),
+                (column_span, "column_span"),
+            ):
+                if value is not None:
+                    if not isinstance(value, int):
+                        return (
+                            False,
+                            f"{name} must be an integer, got {type(value).__name__}",
+                        )
+                    if value <= 0:
+                        return False, f"{name} must be positive, got {value}"
+
+        return True, ""
+
     def validate_color_param(
         self, color: Optional[str], param_name: str
     ) -> Tuple[bool, str]:
@@ -665,6 +753,31 @@ class ValidationManager:
                         f"Operation {i + 1} (update_paragraph_style): {error_msg}",
                     )
 
+            elif op_type == "update_table_cell_style":
+                is_valid, error_msg = self.validate_index(
+                    op["table_start_index"], "table_start_index"
+                )
+                if not is_valid:
+                    return (
+                        False,
+                        f"Operation {i + 1} (update_table_cell_style): {error_msg}",
+                    )
+
+                is_valid, error_msg = self.validate_table_cell_style_params(
+                    op.get("background_color"),
+                    op.get("border_color"),
+                    op.get("border_width"),
+                    op.get("row_index"),
+                    op.get("column_index"),
+                    op.get("row_span"),
+                    op.get("column_span"),
+                )
+                if not is_valid:
+                    return (
+                        False,
+                        f"Operation {i + 1} (update_table_cell_style): {error_msg}",
+                    )
+
         return True, ""
 
     def validate_text_content(
@@ -705,6 +818,7 @@ class ValidationManager:
                     "format_text",
                     "find_replace",
                     "update_paragraph_style",
+                    "update_table_cell_style",
                 ],
                 "element_operations": [
                     "insert_table",

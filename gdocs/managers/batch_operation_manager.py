@@ -14,6 +14,7 @@ from gdocs.docs_helpers import (
     create_delete_range_request,
     create_format_text_request,
     create_update_paragraph_style_request,
+    create_update_table_cell_style_request,
     create_find_replace_request,
     create_insert_table_request,
     create_insert_page_break_request,
@@ -291,6 +292,47 @@ class BatchOperationManager:
 
             description = f"paragraph style {op['start_index']}-{op['end_index']} ({', '.join(style_changes)})"
 
+        elif op_type == "update_table_cell_style":
+            request = create_update_table_cell_style_request(
+                table_start_index=op["table_start_index"],
+                background_color=op.get("background_color"),
+                border_color=op.get("border_color"),
+                border_width=op.get("border_width"),
+                row_index=op.get("row_index"),
+                column_index=op.get("column_index"),
+                row_span=op.get("row_span"),
+                column_span=op.get("column_span"),
+                tab_id=tab_id,
+            )
+
+            if not request:
+                raise ValueError("No table cell style options provided")
+
+            style_changes = []
+            for param, name in [
+                ("background_color", "background"),
+                ("border_color", "border color"),
+                ("border_width", "border width"),
+            ]:
+                if op.get(param) is not None:
+                    value = f"{op[param]}pt" if param == "border_width" else op[param]
+                    style_changes.append(f"{name}: {value}")
+
+            if op.get("row_index") is not None:
+                row_span = op.get("row_span", 1)
+                column_span = op.get("column_span", 1)
+                target = (
+                    f"row {op['row_index']}, column {op['column_index']}, "
+                    f"span {row_span}x{column_span}"
+                )
+            else:
+                target = "entire table"
+
+            description = (
+                f"table cell style at {op['table_start_index']} "
+                f"({target}; {', '.join(style_changes)})"
+            )
+
         elif op_type == "insert_table":
             request = create_insert_table_request(
                 op["index"], op["rows"], op["columns"], tab_id
@@ -357,6 +399,7 @@ class BatchOperationManager:
                 "replace_text",
                 "format_text",
                 "update_paragraph_style",
+                "update_table_cell_style",
                 "insert_table",
                 "insert_page_break",
                 "find_replace",

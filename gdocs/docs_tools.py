@@ -885,6 +885,13 @@ async def batch_update_doc(
                                    indent_first_line, indent_start, indent_end,
                                    space_above, space_below, named_style_type
                                    ('NORMAL_TEXT'|'TITLE'|'SUBTITLE'|'HEADING_1'..'HEADING_6')
+      update_table_cell_style
+                       - required: table_start_index (int)
+                         optional: background_color, border_color, border_width,
+                                   row_index, column_index, row_span, column_span
+                         Use inspect_doc_structure to find table_start_index from
+                         table_details[].start_index. If row/column values are
+                         omitted, the style is applied to the entire table.
       insert_table     - required: index (int), rows (int), columns (int)
       insert_page_break- required: index (int)
       find_replace     - required: find_text (str), replace_text (str)
@@ -904,6 +911,9 @@ async def batch_update_doc(
             {"type": "format_text", "start_index": 1, "end_index": 12, "bold": true},
             {"type": "update_paragraph_style", "start_index": 1, "end_index": 12,
              "heading_level": 1, "alignment": "CENTER"},
+            {"type": "update_table_cell_style", "table_start_index": 42,
+             "row_index": 0, "column_index": 0, "column_span": 3,
+             "background_color": "#D9EAD3"},
             {"type": "find_replace", "find_text": "foo", "replace_text": "bar"},
             {"type": "insert_table", "index": 20, "rows": 2, "columns": 3},
             {"type": "insert_doc_tab", "title": "Appendix", "index": 1}

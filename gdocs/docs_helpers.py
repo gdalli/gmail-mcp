@@ -231,6 +231,47 @@ def build_paragraph_style(
     return paragraph_style, fields
 
 
+def build_table_cell_style(
+    background_color: str = None,
+    border_color: str = None,
+    border_width: float = None,
+) -> tuple[Dict[str, Any], list[str]]:
+    """
+    Build a table cell style object for Google Docs API requests.
+
+    Args:
+        background_color: Cell background color as hex string "#RRGGBB"
+        border_color: Cell border color as hex string "#RRGGBB"
+        border_width: Cell border width in points
+
+    Returns:
+        Tuple of (table_cell_style_dict, list_of_field_names)
+    """
+    table_cell_style = {}
+    fields = []
+
+    if border_color is not None or border_width is not None:
+        border_style = {}
+
+        if border_width is not None:
+            border_style["width"] = {"magnitude": border_width, "unit": "PT"}
+
+        if border_color is not None:
+            rgb = _normalize_color(border_color, "border_color")
+            border_style["color"] = {"rgbColor": rgb}
+
+        for border_name in ("borderTop", "borderBottom", "borderLeft", "borderRight"):
+            table_cell_style[border_name] = border_style.copy()
+            fields.append(border_name)
+
+    if background_color is not None:
+        rgb = _normalize_color(background_color, "background_color")
+        table_cell_style["backgroundColor"] = {"color": {"rgbColor": rgb}}
+        fields.append("backgroundColor")
+
+    return table_cell_style, fields
+
+
 def create_insert_text_request(
     index: int, text: str, tab_id: Optional[str] = None
 ) -> Dict[str, Any]:
@@ -469,6 +510,77 @@ def create_insert_table_request(
     if tab_id:
         location["tabId"] = tab_id
     return {"insertTable": {"location": location, "rows": rows, "columns": columns}}
+
+
+def create_update_table_cell_style_request(
+    table_start_index: int,
+    background_color: str = None,
+    border_color: str = None,
+    border_width: float = None,
+    row_index: int = None,
+    column_index: int = None,
+    row_span: int = None,
+    column_span: int = None,
+    tab_id: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """
+    Create an updateTableCellStyle request for Google Docs API.
+
+    Args:
+        table_start_index: Start index of the target table
+        background_color: Cell background color as hex string "#RRGGBB"
+        border_color: Cell border color as hex string "#RRGGBB"
+        border_width: Cell border width in points
+        row_index: Optional starting row index for a sub-range
+        column_index: Optional starting column index for a sub-range
+        row_span: Optional row span for a sub-range (defaults to 1)
+        column_span: Optional column span for a sub-range (defaults to 1)
+        tab_id: Optional ID of the tab to target
+
+    Returns:
+        Dictionary representing the updateTableCellStyle request, or None if no
+        style fields were provided
+    """
+    table_cell_style, fields = build_table_cell_style(
+        background_color=background_color,
+        border_color=border_color,
+        border_width=border_width,
+    )
+    if not table_cell_style:
+        return None
+
+    location = {"index": table_start_index}
+    if tab_id:
+        location["tabId"] = tab_id
+
+    request: Dict[str, Any] = {
+        "tableCellStyle": table_cell_style,
+        "fields": ",".join(fields),
+    }
+
+    uses_table_range = any(
+        value is not None
+        for value in (row_index, column_index, row_span, column_span)
+    )
+    if uses_table_range:
+        if row_index is None or column_index is None:
+            raise ValueError(
+                "row_index and column_index are required when targeting a table cell range"
+            )
+
+        request["tableRange"] = {
+            "tableCellLocation": {
+                "tableStartLocation": location,
+                "rowIndex": row_index,
+                "columnIndex": column_index,
+            },
+            "rowSpan": 1 if row_span is None else row_span,
+            "columnSpan": 1 if column_span is None else column_span,
+        }
+    else:
+        request["tableStartLocation"] = location
+
+    return {"updateTableCellStyle": request}
 
 
 def create_insert_page_break_request(
@@ -729,6 +841,7 @@ def validate_operation(operation: Dict[str, Any]) -> tuple[bool, str]:
         "replace_text": ["start_index", "end_index", "text"],
         "format_text": ["start_index", "end_index"],
         "update_paragraph_style": ["start_index", "end_index"],
+        "update_table_cell_style": ["table_start_index"],
         "insert_table": ["index", "rows", "columns"],
         "insert_page_break": ["index"],
         "find_replace": ["find_text", "replace_text"],
