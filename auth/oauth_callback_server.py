@@ -46,8 +46,11 @@ class MinimalOAuthServer:
 
         # Setup the callback route
         self._setup_callback_route()
-        # Setup attachment serving route
-        self._setup_attachment_route()
+        # Setup attachment serving route (skip if module not available)
+        try:
+            self._setup_attachment_route()
+        except (ImportError, ModuleNotFoundError):
+            pass
 
     def _setup_callback_route(self):
         """Setup the OAuth callback route."""
