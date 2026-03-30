@@ -14,7 +14,6 @@ from pydantic import BeforeValidator
 from defusedxml import ElementTree as ET
 
 from googleapiclient.errors import HttpError
-from .api_enablement import get_api_enablement_message
 from auth.google_auth import GoogleAuthenticationError
 from auth.oauth_config import is_oauth21_enabled, is_external_oauth21_provider
 
@@ -480,21 +479,11 @@ def handle_http_errors(
                         error.resp.status == 403
                         and "accessNotConfigured" in error_details
                     ):
-                        enablement_msg = get_api_enablement_message(
-                            error_details, service_type
+                        message = (
+                            f"API error in {tool_name}: {error}. "
+                            f"The Gmail API is not enabled for your project. "
+                            f"Enable it at: https://console.cloud.google.com/flows/enableapi?apiid=gmail.googleapis.com"
                         )
-
-                        if enablement_msg:
-                            message = (
-                                f"API error in {tool_name}: {enablement_msg}\n\n"
-                                f"User: {user_google_email}"
-                            )
-                        else:
-                            message = (
-                                f"API error in {tool_name}: {error}. "
-                                f"The required API is not enabled for your project. "
-                                f"Please check the Google Cloud Console to enable it."
-                            )
                     elif error.resp.status in [401, 403]:
                         # Authentication/authorization errors
                         if is_oauth21_enabled():
